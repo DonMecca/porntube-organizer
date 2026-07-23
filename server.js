@@ -96,7 +96,7 @@ function buildManifest(cfg) {
 
   return {
     id: 'pw.ers.porntube.organizer',
-    version: '1.0.0',
+    version: '1.0.1',
     name: 'Porn Tube Organizer',
     description:
       'Studio Genre filters for Porn Tube VR/Old. Reuses your Porn Tube config (RD/TorBox/sites).',
