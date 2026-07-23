@@ -1,0 +1,16 @@
+{
+  "name": "porntube-organizer",
+  "version": "1.0.0",
+  "description": "Stremio wrapper that adds studio Genre filters on top of Porn Tube VR/Old catalogs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: porntube-organizer
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: PORNTUBE_UPSTREAM
+        value: https://ptube.ers.pw
+      - key: CONFIGURE_PASSWORD
+        sync: false

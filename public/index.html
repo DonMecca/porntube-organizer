@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <title>Porn Tube Organizer</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card: #1a1f29;
+      --text: #e8eaed;
+      --muted: #9aa3b2;
+      --accent: #5b8def;
+      --ok: #3dd68c;
+      --border: #2a3344;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, #1b2740, var(--bg));
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem 3rem;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+    }
+    h1 { margin: 0 0 0.35rem; font-size: 1.45rem; }
+    p { color: var(--muted); line-height: 1.5; }
+    label { display: block; margin: 1rem 0 0.4rem; font-weight: 600; }
+    textarea, input {
+      width: 100%;
+      background: #0d1118;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem;
+      font: inherit;
+    }
+    textarea { min-height: 110px; resize: vertical; }
+    button {
+      margin-top: 1rem;
+      background: var(--accent);
+      color: #fff;
+      border: 0;
+      border-radius: 10px;
+      padding: 0.7rem 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .out {
+      margin-top: 1.25rem;
+      padding: 1rem;
+      border-radius: 12px;
+      background: #10161f;
+      border: 1px solid var(--border);
+      display: none;
+    }
+    .out.show { display: block; }
+    .ok { color: var(--ok); font-weight: 700; }
+    code, a.install {
+      word-break: break-all;
+      color: #9ec1ff;
+    }
+    a.install {
+      display: inline-block;
+      margin-top: 0.6rem;
+      font-weight: 700;
+    }
+    ul { color: var(--muted); padding-left: 1.2rem; }
+    .count { color: var(--text); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Porn Tube Organizer</h1>
+    <p>
+      Wrapper around Porn Tube that puts your selected studios into the
+      <strong>Genre</strong> dropdown for VR (and fixes Old filters that break on
+      <code>.com</code> names).
+    </p>
+    <ul>
+      <li>Reuse your existing Porn Tube config (RD / TorBox / sites list).</li>
+      <li>Install this instead of (or carefully beside) stock Porn Tube VR.</li>
+      <li>Genre → pick a studio → filtered feed.</li>
+    </ul>
+
+    <label for="src">Paste your Porn Tube install URL or Base64 config</label>
+    <textarea id="src" placeholder="https://ptube.ers.pw/eyJ.../manifest.json"></textarea>
+
+    <button type="button" id="go">Generate install link</button>
+
+    <div class="out" id="out">
+      <div class="ok">Ready</div>
+      <p>Studios in Genre dropdown: <span class="count" id="count">0</span></p>
+      <p>Install URL:</p>
+      <a class="install" id="link" href="#" target="_blank" rel="noopener"></a>
+      <p style="margin-top:1rem">Manifest:</p>
+      <code id="manifest"></code>
+    </div>
+  </main>
+  <script>
+    function extractB64(raw) {
+      const text = (raw || '').trim();
+      if (!text) return '';
+      const m = text.match(/\/([A-Za-z0-9_\-+/=]+)\/(?:manifest\.json)?(?:\?.*)?$/i)
+        || text.match(/([A-Za-z0-9_\-+/=]{40,})/);
+      return m ? m[1] : text;
+    }
+
+    function decodeCfg(b64) {
+      let t = b64.replace(/-/g, '+').replace(/_/g, '/');
+      while (t.length % 4) t += '=';
+      return JSON.parse(atob(t));
+    }
+
+    function studioCount(sites) {
+      const keys = new Set();
+      for (const s of sites || []) {
+        const k = String(s).trim().toLowerCase().replace(/\.com$/i, '').replace(/[^a-z0-9]+/g, '');
+        if (k) keys.add(k);
+      }
+      return keys.size;
+    }
+
+    document.getElementById('go').onclick = () => {
+      try {
+        const b64 = extractB64(document.getElementById('src').value);
+        const cfg = decodeCfg(b64);
+        const origin = location.origin.replace(/\/$/, '');
+        const manifest = origin + '/' + b64 + '/manifest.json';
+        const install = 'stremio://' + origin.replace(/^https?:\/\//, '') + '/' + b64 + '/manifest.json';
+        document.getElementById('count').textContent = String(studioCount(cfg.sites) + 1); // + Latest
+        document.getElementById('link').href = install;
+        document.getElementById('link').textContent = install;
+        document.getElementById('manifest').textContent = manifest;
+        document.getElementById('out').classList.add('show');
+      } catch (e) {
+        alert('Could not parse that config. Paste the full Porn Tube manifest URL.');
+      }
+    };
+  </script>
+</body>
+</html>
