@@ -1,6 +1,84 @@
 'use strict';
 
 const express = require('express');
+
+/**
+ * PornTube "New" (tpdb_catalog) genre options, taken from the upstream manifest
+ * (68 entries). Hardcoded rather than fetched so building a manifest costs no
+ * upstream request; refresh with:
+ *   curl -s https://ptube.ers.pw/manifest.json |  *     python3 -c "import sys,json; d=json.load(sys.stdin); print([e['options'] for c in d['catalogs'] if c['id']=='tpdb_catalog' for e in c['extra'] if e['name']=='genre'][0])"
+ */
+const TPDB_GENRES = [
+  "Mature",
+  "Teen",
+  "MILF",
+  "African American",
+  "Anal",
+  "Lesbian",
+  "Threesome",
+  "Amateur",
+  "Asian",
+  "Babes",
+  "Babysitter",
+  "BBW",
+  "BTS",
+  "Big Ass",
+  "Big Dick",
+  "Big Boobs",
+  "Bisexual",
+  "Blonde",
+  "Blowjob",
+  "Bondage",
+  "Brunette",
+  "Bukkake",
+  "Casting",
+  "College",
+  "Cosplay",
+  "Creampie",
+  "Cuckold",
+  "Cumshot",
+  "Double Penetration",
+  "European",
+  "Exclusive Scenes",
+  "Feet",
+  "Orgasm",
+  "Fetish",
+  "Fingering",
+  "Fisting",
+  "Gangbang",
+  "Handjob",
+  "Hardcore",
+  "Interracial",
+  "Latina",
+  "Massage",
+  "Masturbation",
+  "Muscular Man",
+  "Orgy",
+  "Parody",
+  "Party",
+  "Peeing Scene",
+  "Pornstar",
+  "POV",
+  "Public",
+  "Cunnilingus",
+  "Reality",
+  "Redhead",
+  "Roleplay",
+  "Romantic",
+  "Rough Sex",
+  "School",
+  "Small Boobs",
+  "Smoking",
+  "Solo",
+  "Squirting",
+  "Step",
+  "Strip",
+  "Tattoos",
+  "Tease",
+  "Toys",
+  "Trans"
+];
+
 const path = require('path');
 const { decodeConfig, studioGenreOptions } = require('./lib/config');
 const {
@@ -90,7 +168,7 @@ function buildManifest(cfg) {
     extra: [
       { name: 'skip', isRequired: false },
       { name: 'search', isRequired: false },
-      { name: 'genre', isRequired: false }
+      { name: 'genre', isRequired: false, options: TPDB_GENRES }
     ]
   });
 
@@ -101,7 +179,8 @@ function buildManifest(cfg) {
     description:
       'Studio Genre filters for Porn Tube VR/Old. Reuses your Porn Tube config (RD/TorBox/sites).',
     logo: 'https://ptube.ers.pw/logo.png',
-    background: 'https://ptube.ers.pw/background.png',
+    // Upstream has no background asset: /background.png serves its HTML landing
+    // page (content-type text/html), so omit it rather than ship a broken image.
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie'],
     idPrefixes: ['pt', 'porndb'],
@@ -112,6 +191,26 @@ function buildManifest(cfg) {
       adult: true
     }
   };
+}
+
+/**
+ * Strip fields a catalog row never renders.
+ *
+ * Upstream items are full meta objects: `links` alone (33 search deep-links per
+ * item) is ~60% of the payload, with website/logo/background/trailerStreams
+ * adding more. `title` is also a byte-for-byte duplicate of `name` on every
+ * item upstream returns, and `runtime` is an empty string on VR/Old. Dropping
+ * these cuts the catalog response by roughly 75% with no visual change.
+ */
+function slimCatalogMeta(meta) {
+  if (!meta || typeof meta !== 'object') return meta;
+  const {
+    links, website, logo, background, trailerStreams,
+    title, runtime,
+    ...rest
+  } = meta;
+  if (runtime) rest.runtime = runtime;
+  return rest;
 }
 
 function parseExtras(extraPath) {
@@ -155,7 +254,7 @@ async function handleCatalog(configB64, catalogId, extras, res) {
   }
 
   res.setHeader('Cache-Control', 'max-age=120, public');
-  return res.json({ metas: data.metas || [] });
+  return res.json({ metas: (data.metas || []).map(slimCatalogMeta) });
 }
 
 app.get('/manifest.json', (req, res) => {
@@ -170,13 +269,28 @@ app.get('/:config/manifest.json', (req, res) => {
   res.json(buildManifest(cfg));
 });
 
+/**
+ * Report an upstream failure honestly.
+ *
+ * These previously collapsed into 502 with a generic body. Rate limiting in
+ * particular needs its own status so a caller (or a human reading logs) can tell
+ * "upstream is throttling us" apart from "upstream is broken".
+ */
+function sendUpstreamError(res, err) {
+  const status = err && err.rateLimited ? 503 : (err && err.status) || 502;
+  if (status === 503 && err && err.retryAfter) {
+    res.setHeader('Retry-After', String(err.retryAfter));
+  }
+  return res.status(status).json({ metas: [], error: err ? err.message : 'upstream error' });
+}
+
 // /config/catalog/movie/pt_vr_org.json
 app.get('/:config/catalog/:type/:id.json', async (req, res) => {
   try {
     await handleCatalog(req.params.config, req.params.id, {}, res);
   } catch (err) {
     console.error('catalog error', err.message);
-    res.status(502).json({ metas: [], error: err.message });
+    sendUpstreamError(res, err);
   }
 });
 
@@ -186,7 +300,7 @@ app.get('/:config/catalog/:type/:id/:extra.json', async (req, res) => {
     await handleCatalog(req.params.config, req.params.id, parseExtras(req.params.extra), res);
   } catch (err) {
     console.error('catalog error', err.message);
-    res.status(502).json({ metas: [], error: err.message });
+    sendUpstreamError(res, err);
   }
 });
 
